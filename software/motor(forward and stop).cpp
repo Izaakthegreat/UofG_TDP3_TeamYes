@@ -1,15 +1,28 @@
 #include "mbed.h"
+#include "TCS3472_I2C.h"
 
+
+// https://os.mbed.com/users/Allar/code/TCS3472_I2C/
+// ensure library has char cast to char fixed
+
+// Pin initialisation
+TCS3472_I2C rgb_sensor_1(PTE0, PTE1);
+
+TCS3472_I2C rgb_sensor_0(PTC9, PTC8);
+
+// Define magnet control
+PwmOut magnet(PTE31);
 
 // Define L298N motor control pins
-PwmOut PwmR(PTA4);//control right 
-DigitalOut Rforward(PTC3);  // Adjust these pin assignments as per your connection
-DigitalOut Rbackward(PTC4);
+PwmOut PwmR(PTA12);//control right 
+DigitalOut Rforward(PTA2);  // Adjust these pin assignments as per your connection
+DigitalOut Rbackward(PTD4);
 
-PwmOut PwmL(PTA5);//control left
-DigitalOut Lforward(PTC5);
-DigitalOut Lbackward(PTC6);
+PwmOut PwmL(PTA1);//control left
+DigitalOut Lforward(PTA5);
+DigitalOut Lbackward(PTA4);
 
+// Define motor control 
 void control_R(float dutycycle, bool direction) {
     PwmR = dutycycle;
     if (direction==1){
@@ -21,7 +34,6 @@ void control_R(float dutycycle, bool direction) {
     Rbackward = 1;
     }
 }
-
 void stopMotor() {
     Rforward = 0;
     Rbackward = 0;
@@ -29,7 +41,6 @@ void stopMotor() {
     Lbackward = 0;
 
 }
-
 void control_L(float dutycycle, bool direction) {
     PwmL = dutycycle;
     if(direction==1){
@@ -42,63 +53,66 @@ void control_L(float dutycycle, bool direction) {
     }
 }
 
-
-
 int main() {
-    while(1){
-        for (float i = 0.0; i < 500; i++){ 
-            control_R(i/500.0,1);
-            control_L(i/500.0,1);
-            wait_us(40000);
-        }
-        stopMotor();
-        wait_us(5000000);//start speed 0.5
+    magnet=1;
+  // Initialising the sensor values - sent through I2C to sensor peripheral
+  rgb_sensor_0.enablePowerAndRGBC();
+  rgb_sensor_0.setIntegrationTime(20);
+  rgb_sensor_1.enablePowerAndRGBC();
+  rgb_sensor_1.setIntegrationTime(20);
+  // Variable initiation
+  float threshold[4] = {1250.0, 3.0, 3.0, 2.5};//1250.0, 3.0, 3.0, 2.5
+  int rgb_readings_0[4];
+  int rgb_readings_1[4];
+  float line_constant;
+  // Right Sensor
 
-        control_R(0.1,1);
-        control_L(0.1,1);
-        wait_us(5000000);//start speed 0.5
+  // Main Loop
+  while (1){ 
+    rgb_sensor_0.getAllColors(rgb_readings_0);
+    printf("clear: %d, red: %d, green: %d, blue: %d\n", rgb_readings_0[0],
+           rgb_readings_0[1], rgb_readings_0[2], rgb_readings_0[3]);
+           rgb_sensor_0.getAllColors(rgb_readings_0);
+    rgb_sensor_0.getAllColors(rgb_readings_1);
+    printf("clear: %d, red: %d, green: %d, blue: %d\n", rgb_readings_0[0],
+           rgb_readings_1[1], rgb_readings_1[2], rgb_readings_1[3]);
 
-        stopMotor();
-        wait_us(5000000);//start speed 0.5
+bool on_line_R = 0;
 
-        control_R(1,1);
-        control_L(1,1);
-        wait_us(5000000);//start speed 0.5
+bool on_line_L = 0;
 
-        stopMotor();
-         wait_us(1000000);//start speed 0.5
-
-        control_R(0.1,0);
-        control_L(0.1,0);
-        wait_us(5000000);//start speed 0.5
-
-        stopMotor();
-        wait_us(1000000);//start speed 0.5
-
-        control_R(1,0);
-        control_L(1,0);
-        wait_us(5000000);//start speed 0.5
-
-        stopMotor();
-        wait_us(1000000);//start speed 0.5 
-
-        control_R(0.5,1);
-        control_L(1,1);
-        wait_us(5000000);//start speed 0.5
-
-        stopMotor();
-        wait_us(1000000);//start speed 0.5
-
-        control_R(1,1);
-        control_L(0.5,1);
-        wait_us(5000000);//start speed 0.5  
-
-        stopMotor();
+//Clear values Left-Right comparison
+    //line_constant will be a value between 0.0-1.0, where [0.0 -> Hard LEFT] & [1.0 -> Hard RIGHT]
+    //real values for this will vary between about 0.25-0.75 from testing
+   // on_line_R = (rgb_readings_0[0]/(rgb_readings_0[0]+rgb_readings_1[0]));
+    //on_line_L = (rgb_readings_1[0]/(rgb_readings_0[0]+rgb_readings_1[0]));
+    if (rgb_readings_0[0] > 1500 and rgb_readings_1[0] < 1300 ) {
+      on_line_R = 1;
+    }
+    if (rgb_readings_1[0] > 1300 and rgb_readings_0[0] < 1500 ) {
+      on_line_L = 1;
     }
 
+    //Turning
+  
+   if (on_line_R == 1) {
+    control_R(0.1,0);
+    control_L(0.2,1);
+    wait_us(1000);
+    on_line_R=0;
+    } else if (on_line_L == 1) {
+    control_R(0.2,1);
+    control_L(0.1,0);
+    wait_us(1000);
+    on_line_L=0;
+    } else if (on_line_R == 0 and on_line_L == 0){
+    control_R(0.1,1);
+    control_L(0.1,1);
+    wait_us(1000);
+    }
 
-}
-        if (rgb_readings[3] > rgb_readings[1] && rgb_readings[3] > rgb_readings[2]) {
+  }
+} > rgb_readings[1] && rgb_readings[3] > rgb_readings[2]) {
             printf("Blue is highest\n");
         }
         wait_us(100000);
