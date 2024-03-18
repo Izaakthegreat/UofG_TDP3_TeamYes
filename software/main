@@ -1,0 +1,479 @@
+/* mbed Microcontroller Library
+ * Copyright (c) 2019 ARM Limited
+ * SPDX-License-Identifier: Apache-2.0
+ */
+// ensure library has char cast to char fixed
+
+
+//Motor Control
+# define PWM_period_m 10   //setting PWM periods
+# define STOP 0
+# define FORWARDS 1
+# define BACKWARDS 2
+
+DigitalOut myled(LED1); //led startup
+
+// colour sensor
+I2C i2c(I2C_SDA , I2C_SCL) // pins for i2c comms
+
+int sensor_address = 41<<1;
+
+
+// PWM for motor speed
+PWMOut PWMmotorleft(PTA4); 
+PWMOut PWMmotorright(PTA5);
+
+BusOut leftmotormode(PTC11,PTC12); // pins for out left
+BusOut rightmotormode(PTC11,PTC12); //pins for out right
+
+// set up black line detection
+DigitalIn lineSensor1(PTA1); //pin for sensor 1
+DigitalIn linesensor2(PTA2);
+DigitalIn linesensor3(PTA3);
+
+// blootooth module control for later 
+//Serial blootooth(PT12.PT22);
+
+// motor control set up
+ class MotorController {
+       public:
+       int state;
+       int speed;
+
+       void initialise();
+       void setSpeed(int pwm_set);
+       void setLeftMotorSpeed(int pwm_set);
+       void setRightMotorSpeed(int pwm_set);
+       void stopBothMotors();
+       void goForwards();
+       void goBackwards();
+       void turnLeft();
+       void turnRight();
+       void changeDirection(int direction);
+
+       private:
+       void setLeftMotorMode(int mode);
+       void setRightMotorMode(int mode);
+
+ };
+
+ void MotorController:initalize()
+ {
+     state = STOP;
+     speed = 0;
+     PWMmotorleft.pwm_set( PWM_period_m);
+     PWMmotorright.pwm_set(PWM_period_m);
+
+ }
+
+ void MotorController::setLeftMotorSpeed(int pulsewidth_set)
+{
+    PWMmotorLeft.pulsewidth_set(pulsewidth_set);
+}
+
+
+void MotorController::setRightMotorSpeed(int pulsewidth_set)
+{
+    PWMmotorRight.pulsewidth_set(pulsewidth_set);
+}
+
+
+void MotorController::setLeftMotorMode(int mode)
+{
+    leftMotorMode = mode;
+}
+
+void MotorController::setRightMotorMode(int mode)
+{
+    rightMotorMode = mode;
+}
+
+void MotorController::stopMotors()
+{
+    setLeftMotorMode(STOP);
+    setRightMotorMode(STOP);
+}
+
+void MotorController::goForward()
+{
+    state = FORWARD;
+    
+    setLeftMotorMode(FORWARD);
+    setRightMotorMode(FORWARD);
+
+    setLeftMotorSpeed(speed);
+    setRightMotorSpeed(speed);
+
+}
+
+void MotorController::goBackward()
+{
+    state =  BACKWARD;
+    
+    setLeftMotorMode(BACKWARD);
+    setRightMotorMode(BACKWARD);
+
+    setLeftMotorSpeed(speed);
+    setRightMotorSpeed(speed);
+
+}
+
+void MotorController::turnLeft()
+{   
+    state = LEFT;
+    
+    setLeftMotorMode(BACKWARD);
+    setRightMotorMode(FORWARD);
+
+    setLeftMotorSpeed(speed);
+    setRightMotorSpeed(speed);
+
+}
+
+
+void MotorController::turnRight()
+{
+    state = RIGHT;
+    
+    setLeftMotorMode(FORWARD);
+    setRightMotorMode(BACKWARD);
+
+    setLeftMotorSpeed(speed);
+    setRightMotorSpeed(speed);
+}
+
+void MotorController::changeDirection(int direction) {
+    
+    switch(direction) {
+        
+        case STOP:
+            stopMotors();
+            break;
+         
+        case FORWARD:
+            goForward();
+            break;   
+        
+        case BACKWARD:
+            goBackward();
+            break;
+        
+        case LEFT:
+            turnLeft();
+            break;
+            
+        case RIGHT:
+            turnRight();
+            break;
+            
+        default:
+            stopMotors();
+            break;
+            
+    }
+
+void MotorController::setSpeed(int pulsewidth_set) {
+    speed = pulsewidth_set;   
+}
+
+}
+
+
+
+
+
+
+
+
+
+//// colour detection sensor setup code
+
+
+// Pin initialisation
+TCS3472_I2C rgb_sensor_R(PTE0, PTE1);
+TCS3472_I2C rgb_sensor_L(PTC9, PTC8);
+TCS3472_I2C rgb_sensor_L(PTE0, PTE1);
+TCS3472_I2C rgb_sensor_R(PTC9, PTC8);
+DigitalOut boardled(LED1);
+DigitalOut Electromagnet(PTE31,PullUp);
+// DigitalOut green(PTA4);
+@@ -21,6 +21,14 @@ void sensorsInitialise(int int_time) {
+    rgb_sensor_L.setIntegrationTime(int_time);
+}
+
+double getLineConstant(int clear_R, int clear_L) {
+        int denominator = ((clear_L) + (clear_R));
+        int numerator = (clear_L);
+        float ratio = static_cast<float>(numerator) / denominator;
+        int percent = static_cast<int>(ratio*100);
+        return ratio;
+}
+
+// void sensorsGetRatios(int rgb_readings_R[4], int rgb_readings_L[4])/{
+//     rgb_sensor_R.getAllColors(rgb_readings_R);
+//     rgb_sensor_L.getAllColors(rgb_readings_L);
+@@ -45,9 +53,7 @@ int main() {
+    float threshold[4] = {1250.0, 3.0, 3.0, 2.5};
+    int rgb_readings_R[4];
+    int rgb_readings_L[4];
+    float clear_R = rgb_readings_R[0];
+    float clear_L = rgb_readings_L[0];
+    float line_constant = 0;
+    double line_constant;
+    // Right Sensor
+    float red_ratio_R;
+    float green_ratio_R;
+@@ -65,13 +71,16 @@ int main() {
+    // Collect RGB readings from sensors
+        rgb_sensor_R.getAllColors(rgb_readings_R);
+        rgb_sensor_L.getAllColors(rgb_readings_L);
+
+        line_constant = getLineConstant(rgb_readings_R[0],rgb_readings_L[0]);
+        int percent = static_cast<int>(line_constant*100);
+        printf("Line constant percent --- \nPercent (LC*100): %d \n", percent);
+    // Prints RGB readings to output, e.g. Putty. (For bug testing/troubleshooting)    
+        //printf("RIGHT: clear: %d, red: %d, green: %d, blue: %d\n", rgb_readings_R[0],rgb_readings_R[1], rgb_readings_R[2], rgb_readings_R[3]);
+        //printf("LEFT: clear: %d, red: %d, green: %d, blue: %d\n", rgb_readings_L[0],rgb_readings_L[1], rgb_readings_L[2], rgb_readings_L[3]);
+
+    // Ratios of colours divided by other two colour values values
+        // Right Sensor
+
+        red_ratio_R = rgb_readings_R[1] / ((rgb_readings_R[2] + rgb_readings_R[3]));
+        green_ratio_R = rgb_readings_R[2] / ((rgb_readings_R[1] + rgb_readings_R[3]));
+        blue_ratio_R = rgb_readings_R[3] / ((rgb_readings_R[1] + rgb_readings_R[2]));
+@@ -122,37 +131,30 @@ int main() {
+        blue_L = true;
+        }
+
+    //Clear values Left-Right comparison
+        // line_constant will be a variable with a value between 0.0-1.0, where [0.0 -> Hard LEFT] & [1.0 -> Hard RIGHT]
+        // real values for this will vary between about 0.25-0.75 from testing
+        line_constant = (1.0*rgb_readings_L[0]/(1.0*rgb_readings_R[0]+1.0*rgb_readings_L[0]));
+
+        printf("Line Constant: %d \n", line_constant);
+        wait_us(200000); // Replace with PID controller and move wait to after - wait must be >20000us to allow for integration time
+
+
+        // Red Disk flags for pickup and drop off
+        if (red_R == true && red_L == false) {
+        // Electromagnet Trigger ON
+        red_pickup = true;
+        } else if (red_R == true && red_L == true && red_pickup == true) {
+        // Electromagnet Trigger OFF
+        red_pickup = false;
+        }
+        else{
+                wait_us(1);
+        }
+
+        wait_us(400000); // Replace with PID controller and move wait to after - wait must be >20000us to allow for integration time
+        // // Red Disk flags for pickup and drop off
+        // if (red_R == true && red_L == false) {
+        // // Electromagnet Trigger ON
+        // red_pickup = true;
+        // } else if (red_R == true && red_L == true && red_pickup == true) {
+        // // Electromagnet Trigger OFF
+        // red_pickup = false;
+        // }
+        // else{
+        //         wait_us(1);
+        // }
+
+        // Blue Disk flags for pickup and drop off
+        if (blue_R == true && blue_L == false) {
+        // Electromagnet Trigger ON
+        Electromagnet = 0;
+        } else if (blue_R == true && blue_L == true && blue_pickup == true) {
+        // Electromagnet Trigger OFF
+        blue_pickup = false;
+        }
+        else{
+            wait_us(1);      
+        }
+        // // Blue Disk flags for pickup and drop off
+        // if (blue_R == true && blue_L == false) {
+        // // Electromagnet Trigger ON
+        // Electromagnet = 0;
+        // } else if (blue_R == true && blue_L == true && blue_pickup == true) {
+        // // Electromagnet Trigger OFF
+        // blue_pickup = false;
+        // }
+        // else{
+        //     wait_us(1);      
+        // }
+    }
+
+//line following code
+
+# define LEFT as 3
+# define RIGHt as 4
+
+class LineFollower {
+    bool lineDetection1;
+    bool lineDetection2;
+    bool linedetection3;
+    int Direction;
+
+    void initialize();
+
+    void readsensor1();
+    void readsensor2();
+    void readsensor3();
+    void readsensors();
+    // replicate when sensor number known
+
+    int Direction();
+
+}
+
+void LineFollower:Initialize() {
+     lineDetection1 = false;
+     lineDetection2 = false;
+     lineDetection3 = false;
+     direction = STOP;
+
+}
+
+void LineFollower:readsensor1() {
+     lineDetection1 = lineSensor1;
+}
+
+void LineFollower:readsensor2(){
+     lineDetection2 = linesensor2;
+}
+
+void LineFollower:readsensor3(){
+     lineDetection3 = linesensor3
+}
+
+void LineFollower:readsensors(){
+    readsensor1();
+    readsensor2();
+    readsensor3();
+}
+
+int LineFollower:determineDirection() {
+    int sensordata = 0x00 & ((lineDetection1 << 2) + (lineDetection2 << 1) + (lineDetection3));
+    sensordata = sensordata & 0x07;
+
+    switch(sensordata) {
+        /// 000
+        case 0x0:
+             direction = STOP;
+             break;
+
+        /// 001
+        case 0x1:
+             direction = RIGHt
+             break;
+
+        /// 010
+        case 0x2:
+             direction = FORWARDS
+             break;
+
+        /// 011
+        case 0x3:
+             direction = RIGHT;
+             break;
+
+        /// 100
+        case 0x4:
+            direction = LEFT;
+            break;
+        
+        //101
+        case 0x5:
+            if(red_path) {
+                direction = LEFT;
+            }
+            
+            if(blue_path) {
+                direction = RIGHT;
+            }
+            
+            break;
+            
+        //110    
+        case 0x06:
+            direction = RIGHT;
+            break;
+            
+        //111
+        case 0x7:
+            direction = FORWARD;
+            break;
+        
+        default:
+            direction = FORWARD;
+            break;
+     }       
+
+     return direction;
+
+}
+
+int main() {
+// start up routine
+
+// inital blink LED to know ON
+myled = 0;
+wait(1);
+myled = 1;
+wait(1);
+myled = 0;
+
+bool colourobject_detected = false //pls edit to match electromag code
+
+MotorController motorController;
+LineFollower    lineFollower;
+ColourSensor    colourSensor;
+
+
+motorController.initialize();
+LineFollower.initialize();
+
+//start on straight
+motorController.setSpeed(100);
+motorController.goForward();
+
+while(true){
+    // enter bluetooth shit in future weeks
+
+    lineFollower.readSensors();
+    motorController.changeDirection(lineFollower.chooseDirection());
+
+    colourSensor.read();
+
+    // enter commands for colour detect
+
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+}
+
+
+
+}
