@@ -1,0 +1,303 @@
+#include "mbed.h"
+
+// Define sensors for black line detection
+DigitalIn lineSensor1(PTD1);
+DigitalIn lineSensor2(PTD3);
+DigitalIn lineSensor3(PTD2);
+//DigitalIn lineSensor4(PTD0);
+//DigitalIn lineSensor5(PTD5);
+//DigitalIn lineSensor6(PTA13);
+
+// Define motor control parameters
+#define PWM_period 1000 // in microseconds ( 1000 = 1 millisecond)
+#define STOP 0
+#define FORWARD 1
+#define BACKWARD 2
+
+// Define line following parameters, other parameters follow on from above
+#define LEFT 3
+#define RIGHT 4
+
+//Define desired PWM values for motor speed
+PwmOut PWMmotorLeft(PTA1);
+PwmOut PWMmotorRight(PTA12);
+
+BusOut rightMotorMode(PTA2, #Rbackwards);  //Rforwardspin, Rbackwardspin
+BusOut leftMotorMode(PTA5,PTA4);    //Lforwradspin, Lbackwardspin
+
+class MotorController {
+    public:
+    int state;
+    int speed;
+
+    void initialize();
+    void setSpeed(int PWM_period);
+    void setLeftMotorSpeed(int PWM_period);
+    void setRightMotorSpeed (int PWM_period);
+    void stopMotors();
+    void moveForward();
+    void moveBackward();
+    void turnLeft();
+    void turnRight();
+    void changeDirection(int direction);
+
+    private:
+    void setLeftMotorMode(int mode);
+    void setRightMotorMode(int mode);
+};
+  
+void MotorController ::initialize()
+{
+    state = STOP;
+    speed = 0;
+    PWMMotorLeft.period(PWM_period);
+    PWMMotorRight.period(PWM_period);
+}
+
+void MotorController :: setLeftMotorSpeed(int pulsewidth)
+{
+    PWMmotorLeft.pulsewidth(pulsewidth);
+}
+
+void MotorController:: setRightMotorSpeed(int pulsewidth)
+{
+    PWMmotorRight.pulsewidth(pulsewidth);
+}
+
+void MotorController:: setLeftMotorMode(int mode)
+{
+    leftMotorMode = mode;
+}
+
+void MotorController:: setRightMotorMode(int mode)
+{
+    rightMotorMode = mode;
+}
+
+void MotorController:: stopMotors()
+{
+    setLeftMotorMode(STOP);
+    setRightMotorMode(STOP);
+}
+
+void MotorController:: goForward()
+{
+    state = FORWARD;
+    
+    setLeftMotorMode(FORWARD);
+    setRightMotorMode(FORWARD);
+
+    setLeftMotorSpeed(speed);
+    setRightMotorSpeed(speed);
+}
+
+void MotorController::goBackward()
+{
+    state =  BACKWARD;
+    
+    setLeftMotorMode(BACKWARD);
+    setRightMotorMode(BACKWARD);
+
+    setLeftMotorSpeed(speed);
+    setRightMotorSpeed(speed);
+
+}
+
+void MotorController::turnLeft()
+{   
+    state = LEFT;
+    
+    setLeftMotorMode(BACKWARD);
+    setRightMotorMode(FORWARD);
+
+    setLeftMotorSpeed(speed);
+    setRightMotorSpeed(speed);
+
+}
+
+void MotorController::turnRight()
+{
+    state = RIGHT;
+    
+    setLeftMotorMode(FORWARD);
+    setRightMotorMode(BACKWARD);
+
+    setLeftMotorSpeed(speed);
+    setRightMotorSpeed(speed);
+}
+
+void MotorController::changeDirection(int direction) {
+    
+    switch(direction) {
+        
+        case STOP:
+            stopMotors();
+            break;
+         
+        case FORWARD:
+            goForward();
+            break;   
+        
+        case BACKWARD:
+            goBackward();
+            break;
+        
+        case LEFT:
+            turnLeft();
+            break;
+            
+        case RIGHT:
+            turnRight();
+            break;
+            
+        default:
+            stopMotors();
+            break;
+            
+    }
+}
+
+void MotorController:: setSpeed(int pulsewidth){
+    speed = pulsewidth;
+
+}
+
+class lineFollower{
+    bool lineDetected1;
+    bool lineDetected2;
+    bool lineDetected3;
+    //bool lineDetected4;
+    //bool lineDetected5;
+    //bool lineDetected6;
+    int direction;
+
+    void initialize();
+
+    void readSensor1();
+    void readSensor2();
+    void readSensor3();
+    //void readSensor4();
+    //void readSensor5();
+    //void readSensor6();
+
+    int determineDirection();
+    
+};
+
+void lineFollower:: initialize(){
+    lineDetected1 = false;
+    lineDetected2 = false;
+    lineDetected3 = false;
+    //lineDetected4 = false;
+    //lineDetected5 = false;
+    //lineDetected6 = false;
+    direction = STOP;
+
+}
+
+void lineFollower:: readSensor1();{
+    lineDetected1 = lineSensor1;
+
+}
+
+void lineFollower:: readSensor2();{
+    lineDetected2 = lineSensor2;
+
+}
+
+void lineFollower:: readSensor3();{
+    lineDetected3 = lineSensor3;
+
+}
+
+//void lineFollower:: readSensor4();{
+    //lineDetected4 = lineSensor4;
+
+//}
+
+//void lineFollower:: readSensor5();{
+    ///lineDetected5 = lineSensor5;
+
+//}
+
+//void lineFollower:: readSensor6();{
+    //lineDetected6 = lineSensor6;
+
+//}
+
+void LineFollower::readSensors() {
+    readSensor1();
+    readSensor2();
+    readSensor3();
+    //readSensor4();
+    //readSensor5();
+    //readSensor6(); 
+}
+
+int LineFollower:: determineDirection(){
+    int sensorData = 0x00 & ((lineDetected1 << 2) + (lineDetected2 << 1) + (lineDetected3));
+    sensorData = sensorData & 0x07;
+
+    switch(sensorData) {
+        //000
+        case 0x0:
+        direction = STOP;
+        break;
+
+        //001
+        case 0x1:
+        direction = RIGHT;
+        break;
+        
+        //010
+        case 0x2:
+        direction = FORWARD;
+        break;
+        
+       //011
+       case 0x3:
+       direction = RIGHT;
+       break;
+        
+       //100
+       case 0x4:
+       direction = LEFT;
+       break;
+
+      //110    
+      case 0x06:
+      direction = RIGHT;
+      break;
+            
+      //111
+      case 0x7:
+      direction = FORWARD;
+      break;
+        
+      default:
+      direction = FORWARD;
+      break;
+    }      
+    return direction;
+}
+
+int main(){
+    motorController.initialize();
+    lineFollower.initialize();
+
+    //Start of main routine - going straight
+    motorController.setSpeed(100);
+    motorController.goForward();
+
+    while(true) {
+        lineFollower.readSensors();
+        motorController.changeDirection(lineFollower.determineDirection());
+
+    }
+
+
+
+
+
+
+}
