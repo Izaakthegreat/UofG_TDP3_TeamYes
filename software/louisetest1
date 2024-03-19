@@ -1,0 +1,79 @@
+void lineFollowing(float turnspeed, float frwdspeed, float LRbias){
+      if(SENSE_3 == 1)
+      {
+         while((SENSE_2 ! = 1) && (SENSE_1 ! = 1)) // turn until middle side is alligned
+         motorControl_L(turnspeed * (1 + LRbias) , 1);
+         motorControl_R(turnspeed * (1))
+
+      }
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+int main() {
+  //DigitalOut led(LED1);
+
+  thread_sleep_for(500);
+
+  float turnspeed = 0.3f; // Values for turnspeed and forward speed, so far best seem to be at 0.65 and 0.21, although this depends heavily on the charge of the battery
+  float frwdspeed = 0.3f;
+  float LRbias = 0.01f; // Value to change the relative speeds of the motors, this should be from 0 to 1
+
+
+  float obstacle_distance1;
+   
+  while(1) {
+    // put your main code here, to run repeatedly:
+    
+    
+    if(SENSE_3 == 1)
+    {
+      while((SENSE_2 != 1) && (SENSE_1 != 1)) // Keeps turning until the mid OR side sensor is activated
+      {
+        motorControl_L(turnspeed * (1 + LRbias), 0);
+        motorControl_R(turnspeed * (1 - LRbias), 1);
+      }
+    }
+    else if (SENSE_1 == 1)
+    {
+      while((SENSE_2 != 1) && (SENSE_3 != 1))
+      {
+        motorControl_L(turnspeed * (1 + LRbias), 1);
+        motorControl_R(turnspeed * (1 - LRbias), 0);
+      };
+    }
+    else
+    {
+      motorControl_L(frwdspeed, 1);
+      motorControl_R(frwdspeed, 1);
+    }
+
+
+
+
+
+
+
+    if(L3 == 1)
+    {
+      while ((L2 != 1) && (L1 != 1))
+      {
+        controlL(0.4);
+
+
+      }
+
+
+
+    }
